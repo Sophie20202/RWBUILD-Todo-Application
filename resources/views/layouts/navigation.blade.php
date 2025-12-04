@@ -18,6 +18,13 @@
                     <x-nav-link :href="route('todos.index')" :active="request()->routeIs('todos.*')">
                         {{ __('My Todos') }}
                     </x-nav-link>
+
+                    <!-- ADMIN LINK: Only show if the user is an admin -->
+                    @if (Auth::check() && Auth::user()->is_admin)
+                        <x-nav-link :href="route('admin.todos.index')" :active="request()->routeIs('admin.todos.index')" class="text-red-600 hover:text-red-800 font-bold">
+                            {{ __('Admin Panel') }}
+                        </x-nav-link>
+                    @endif
                 </div>
             </div>
 
@@ -76,6 +83,13 @@
             <x-responsive-nav-link :href="route('todos.index')" :active="request()->routeIs('todos.*')">
                 {{ __('My Todos') }}
             </x-responsive-nav-link>
+
+            <!-- ADMIN RESPONSIVE LINK: Only show if the user is an admin -->
+            @if (Auth::check() && Auth::user()->is_admin)
+                <x-responsive-nav-link :href="route('admin.todos.index')" :active="request()->routeIs('admin.todos.index')" class="text-red-600 font-bold">
+                    {{ __('Admin Panel') }}
+                </x-responsive-nav-link>
+            @endif
         </div>
 
         <!-- Responsive Settings Options -->
