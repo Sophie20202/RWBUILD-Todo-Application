@@ -4,11 +4,12 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\AdminTodoController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\ISTAfricaAuthController;
 
 Route::get('/', fn() => view('welcome'));
 
 Route::get('/dashboard', fn() => view('dashboard'))
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth'])
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -29,5 +30,12 @@ Route::middleware('auth')->group(function () {
             Route::resource('todos', AdminTodoController::class)->only(['index', 'destroy']);
         });
 });
+
+Route::get('/auth/ist-africa/redirect', [ISTAfricaAuthController::class, 'redirect'])
+    ->name('auth.ist-africa');
+
+Route::get('/auth/callback', [ISTAfricaAuthController::class, 'callback']);
+Route::post('/auth/authenticate', [ISTAfricaAuthController::class, 'apiAuthenticate']);
+
 
 require __DIR__.'/auth.php';
