@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class ISTAfricaAuthController extends Controller
 {
@@ -20,15 +21,15 @@ class ISTAfricaAuthController extends Controller
         $state = Str::random(40);
         $request->session()->put('iaa_oauth_state', $state);
     
-        $clientId = env('NEXT_PUBLIC_IAA_CLIENT_ID');
-        $redirectUri = env('IST_AFRICA_REDIRECT_URI');
-    
-        // Use port 3000 for frontend login
-        $url = "http://localhost:3000/auth/login?" . http_build_query([
-            'client_id' => $clientId,
-            'redirect_uri' => $redirectUri,
+        // Build the URL with query parameters
+        $params = http_build_query([
+            'client_id' => config('services.ist_africa.client_id'),
+            'redirect_uri' => config('services.ist_africa.redirect'),
+            'response_type' => 'code',
             'state' => $state,
         ]);
+    
+        $url = config('services.ist_africa.auth_url') . '?' . $params;
     
         return redirect()->away($url);
     }
@@ -40,37 +41,53 @@ class ISTAfricaAuthController extends Controller
     {
         $code = $request->query('code');
         $state = $request->query('state');
+        $sessionState = $request->session()->get('iaa_oauth_state');
     
-        \Log::info('Callback hit', compact('code', 'state'));
+        Log::info('Callback hit', compact('code', 'state'));
     
-        if (!$code || !$state) {
+        // Validate state to prevent CSRF
+        if (!$code || !$state || $state !== $sessionState) {
             return redirect('/login')->withErrors([
                 'error' => 'Invalid authentication response'
             ]);
         }
+
+        // Remove used state
+        $request->session()->forget('iaa_oauth_state');
     
-        // Send code as query parameter, not in body
-        $tokenResponse = Http::post(
-            rtrim(env('IST_AFRICA_AUTH_URL'), '/') . '/api/auth/tokens?code=' . $code,
+        // Exchange authorization code for access token
+        $tokenResponse = Http::asForm()->post(
+            config('services.ist_africa.token_url'),
             [
-                'client_id' => env('NEXT_PUBLIC_IAA_CLIENT_ID'),
-                'client_secret' => env('IAA_CLIENT_SECRET'),
+                'grant_type' => 'authorization_code',
+                'client_id' => config('services.ist_africa.client_id'),
+                'client_secret' => config('services.ist_africa.client_secret'),
+                'code' => $code,
+                'redirect_uri' => config('services.ist_africa.redirect'),
             ]
         );
     
-        \Log::info('Token response', [
+        Log::info('Token response', [
             'status' => $tokenResponse->status(),
             'body' => $tokenResponse->json(),
         ]);
     
         if (!$tokenResponse->successful()) {
             return redirect('/login')->withErrors([
-                'error' => 'Failed to obtain access token'
+                'error' => 'Failed to obtain access token: ' . ($tokenResponse->json()['message'] ?? 'Unknown error')
+            ]);
+        }
+
+        $tokenData = $tokenResponse->json();
+        $accessToken = $tokenData['access_token'] ?? null;
+
+        if (!$accessToken) {
+            return redirect('/login')->withErrors([
+                'error' => 'No access token received'
             ]);
         }
     
-        $accessToken = $tokenResponse['access_token'];
-    
+        // Decode JWT to get user info
         $userInfo = $this->decodeJWT($accessToken);
     
         if (!$userInfo || empty($userInfo['email'])) {
@@ -84,7 +101,7 @@ class ISTAfricaAuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
     
-        return redirect('/dashboard');
+        return redirect()->route('dashboard');
     }
     
     /**
@@ -96,18 +113,21 @@ class ISTAfricaAuthController extends Controller
             'email' => 'required|email',
             'password' => 'required|string',
         ]);
-
-        // Forward to IAA
-        $response = Http::post(rtrim(env('IST_AFRICA_AUTH_URL'), '/') . '/api/auth/authenticate', [
-            'email' => $credentials['email'],
-            'password' => $credentials['password'],
-            'client_id' => env('NEXT_PUBLIC_IAA_CLIENT_ID'),
-            'client_secret' => env('IAA_CLIENT_SECRET'),
-        ]);
-
+    
+        $response = Http::post(
+            config('services.ist_africa.auth_url') . '/api/auth/authenticate',
+            [
+                'email' => $credentials['email'],
+                'password' => $credentials['password'],
+                'client_id' => config('services.ist_africa.client_id'),
+                'client_secret' => config('services.ist_africa.client_secret'),
+                // ADD THIS LINE:
+                'redirect_uri' => config('services.ist_africa.redirect'), 
+            ]
+        );
+    
         return response()->json($response->json(), $response->status());
     }
-    
     /**
      * Decode JWT token to extract user info
      */
@@ -121,7 +141,7 @@ class ISTAfricaAuthController extends Controller
         $payload = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $parts[1])), true);
         
         return [
-            'id' => $payload['userId'] ?? null,
+            'id' => $payload['sub'] ?? $payload['userId'] ?? null,
             'email' => $payload['email'] ?? null,
             'name' => $payload['name'] ?? null,
             'role' => $payload['role'] ?? 'user',

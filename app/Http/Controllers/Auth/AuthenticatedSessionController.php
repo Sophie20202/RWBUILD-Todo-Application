@@ -25,10 +25,14 @@ class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request): RedirectResponse
     {
         $request->authenticate();
-
+    
         $request->session()->regenerate();
-
-        return redirect()->intended(route('dashboard', absolute: false));
+    
+        \Log::info('Login successful, redirecting to dashboard');
+        \Log::info('Auth check: ' . (Auth::check() ? 'true' : 'false'));
+        \Log::info('User ID: ' . Auth::id());
+    
+        return redirect()->route('dashboard');
     }
 
     /**

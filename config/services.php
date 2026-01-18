@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+'ist_africa' => [
+    'client_id' => env('IST_AFRICA_CLIENT_ID'),
+    'client_secret' => env('IST_AFRICA_CLIENT_SECRET'),
+    'redirect' => env('IST_AFRICA_REDIRECT_URI'),
+    'auth_url' => env('IST_AFRICA_AUTH_URL'),      // Port 3000 - Frontend login page
+    'token_url' => env('IST_AFRICA_TOKEN_URL'),    // Port 5000 - Backend API
+    'user_url' => env('IST_AFRICA_USER_URL'),
+],
+
 ];

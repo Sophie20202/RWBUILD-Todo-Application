@@ -34,7 +34,7 @@ Route::middleware('auth')->group(function () {
 Route::get('/auth/ist-africa/redirect', [ISTAfricaAuthController::class, 'redirect'])
     ->name('auth.ist-africa');
 
-Route::get('/auth/callback', [ISTAfricaAuthController::class, 'callback']);
+Route::get('/auth/callback', [ISTAfricaAuthController::class, 'callback'])->name('iaa.callback');
 Route::post('/auth/authenticate', [ISTAfricaAuthController::class, 'apiAuthenticate']);
 
 
